@@ -70,8 +70,23 @@ Streamlit Cloud memberi ~1.5-2 GB (app jalan di atas lantai 690 MB).
 **Estimasi YOLO: puncak ~1.4-1.6 GB** — muat, tapi headroom tipis.
 
 ## Isu Terbuka (belum tuntas)
-1. **Laporan hang WebSocket dari user** — kemungkinan extension browser memblokir `wss://`.
-   Belum dikonfirmasi. Tes tercepat: buka di **incognito**. Kalau jalan → murni client-side.
+1. **Cold start lambat = "Server Error" / hang (TERDIAGNOSA 2026-10-05)**
+   - Gejala: `Error: Server Error — The server encountered a temporary error and could not
+     complete your request. Please try again in 30 seconds.` Muncul t+45s, bertahan sampai
+     t+120s, lalu hilang sendiri. Setelahnya app render normal
+     (`data-test-connection-state="CONNECTED"`).
+   - **Bukan gangguan Streamlit global** — status page saat kejadian: All Systems Operational,
+     0 insiden aktif.
+   - **BUKAN karena trafik tinggi** — analytics menunjukkan 9 viewer dalam ~4 jam (sangat
+     sedikit). Pesan errornya khas cold start, bukan overload.
+   - **Penyebab: container butuh waktu lama boot karena app berat.** EasyOCR Reader memuncak
+     1.25 GB RAM. Streamlit Cloud tidur setelah 12 jam idle; setiap bangun = 45-120 detik
+     error/hang.
+   - Catatan: viewer tercatat saat request MASUK, bukan saat app selesai render — jadi
+     angka analytics termasuk yang gagal lihat.
+   - **Mitigasi termurah: UptimeRobot ping `https://vision.choirulhaq.com` tiap 5 menit** —
+     app tidak pernah tidur, nol perubahan kode. (Sudah dipakai untuk Render.)
+   - Mitigasi lain: buang EasyOCR → Tesseract (boot lebih cepat, RAM -500 MB) — lihat Phase 9 jalur A.
 2. **Trade-off koreksi plat** — `'B12345AB'` → `'B1234SAB'` (angka jadi huruf).
    Sudah didokumentasikan sebagai trade-off yang diterima, bukan bug.
 

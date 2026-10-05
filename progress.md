@@ -102,5 +102,6 @@ Export `best.pt` -> put in repo. Realistic, no local GPU needed.
 3. If B: get Roboflow API key, add as Streamlit secret, wire detection call.
 4. If A: benchmark pytesseract accuracy vs easyocr on the same plate photos before committing.
 5. If training: build Kaggle notebook, export best.pt, measure RAM again with measure_memory.py.
-6. Note: there is an unresolved WebSocket-hang report from the user (possibly client-side
-   extension blocking wss://). Worth confirming in incognito before further cloud debugging.
+6. **Cold start fix (cheap, independent of Phase 9):** set up UptimeRobot monitor pinging
+   `https://vision.choirulhaq.com` every 5 minutes so the container never sleeps.
+   Diagnosed 2026-10-05: the "Server Error" / hang is cold start, not traffic or a Streamlit outage.
