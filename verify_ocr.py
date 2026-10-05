@@ -46,8 +46,8 @@ roi2 = ocr.extract_plate_roi(scene2, bbox2) if bbox2 else scene2
 res2 = ocr.ocr_plate(roi2, full_image=scene2)
 best2 = max(res2, key=lambda r: r[1]) if res2 else ("", 0)
 print("read:", best2[0], f"({best2[1]*100:.1f}%)")
-member = ocr.match_member(best2[0])
-print("match_member ->", member["nama"] if member else None)
+member, match_type = ocr.match_member(best2[0])
+print("match_member ->", member["nama"] if member else None, f"(type={match_type})")
 assert member is not None and member["nama"] == "Budi Santoso", "FAIL: member match"
 print("PASS: matched Budi Santoso")
 

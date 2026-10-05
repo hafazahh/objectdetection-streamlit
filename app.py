@@ -54,7 +54,7 @@ db.seed_members()
 with st.sidebar:
     st.markdown('## 🚗 ANPR Deteksi Plat')
     st.info('Aplikasi deteksi plat nomor kendaraan otomatis menggunakan OpenCV dan EasyOCR.')
-    st.warning("⚠️ **Demo Notice:** Akurasi OCR ditingkatkan dengan upscale, multi-variant preprocessing, dan allowlist. Hasil lebih akurat tetapi mungkin tetap tidak sempurna pada gambar buram atau sudut ekstrem.")
+    st.warning("⚠️ **Demo Notice:** Akurasi OCR ditingkatkan dengan upscale, multi-variant preprocessing, allowlist, koreksi format plat Indonesia, dan fuzzy matching. Hasil lebih akurat tetapi mungkin tetap tidak sempurna pada gambar buram atau sudut ekstrem.")
     stats = db.get_detection_stats()
     st.metric('Total Member', stats['total_members'])
     st.metric('Total Deteksi', stats['total_detections'])
@@ -106,8 +106,13 @@ if source is not None:
         else:
             # Pick the best confidence result
             best_text, best_conf = max(ocr_results, key=lambda r: r[1])
-            plat_text = ocr.normalize_plate(best_text)
-            member = ocr.match_member(plat_text)
+            raw_plate = ocr.normalize_plate(best_text)
+
+            # Apply format correction
+            plat_text, was_corrected = ocr.correct_plate_format(raw_plate)
+
+            # Match against member database
+            member, match_type = ocr.match_member(plat_text)
             match_status = 'matched' if member else 'unmatched'
 
             # Save to detections table
@@ -120,7 +125,10 @@ if source is not None:
 
             with col2:
                 if match_status == 'matched':
-                    status_html = '<p class="status-matched">✅ MATCHED — Member Terdaftar</p>'
+                    if match_type == 'fuzzy':
+                        status_html = '<p class="status-matched" style="color:#F39C12;">🟡 MATCHED (mirip) — Periksa kembali</p>'
+                    else:
+                        status_html = '<p class="status-matched">✅ MATCHED — Member Terdaftar</p>'
                 else:
                     status_html = '<p class="status-unmatched">❌ UNMATCHED — Tidak Terdaftar</p>'
 
@@ -131,12 +139,22 @@ if source is not None:
                     <b>Kendaraan:</b> {member['jenis_kendaraan']}</p>
                     '''
 
+                # Show correction info if raw differs from corrected
+                correction_html = ''
+                if was_corrected and raw_plate != plat_text:
+                    correction_html = f'''
+                    <p style="color:#A0A0B0; margin-top:8px; font-size:0.9rem;">
+                        OCR membaca: <b>{raw_plate}</b> → Dikoreksi: <b>{plat_text}</b>
+                    </p>
+                    '''
+
                 st.markdown(f'''
                 <div class="result-card">
                     <p style="color:#A0A0B0;">Plat Terdeteksi</p>
                     <div class="plate-text">{plat_text}</div>
                     {status_html}
                     {member_html}
+                    {correction_html}
                     <p style="color:#A0A0B0; margin-top:12px;">Confidence: {best_conf * 100:.1f}%</p>
                 </div>
                 ''', unsafe_allow_html=True)
