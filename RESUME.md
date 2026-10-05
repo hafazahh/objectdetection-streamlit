@@ -84,8 +84,16 @@ Streamlit Cloud memberi ~1.5-2 GB (app jalan di atas lantai 690 MB).
      error/hang.
    - Catatan: viewer tercatat saat request MASUK, bukan saat app selesai render — jadi
      angka analytics termasuk yang gagal lihat.
-   - **Mitigasi termurah: UptimeRobot ping `https://vision.choirulhaq.com` tiap 5 menit** —
-     app tidak pernah tidur, nol perubahan kode. (Sudah dipakai untuk Render.)
+   - **Mitigasi: UptimeRobot ping ORIGIN, bukan domain Worker.**
+     - **BENAR** → `https://objectdetection-app-qoaxopqhhzmjufnhqsfzty.streamlit.app/healthz`
+       (balas `{"status":"ok"}`, tidak butuh login, request MASUK ke container → mencegah sleep)
+     - **SALAH** → `https://vision.choirulhaq.com`
+       (Cloudflare Worker hanya mengirim HTML statis berisi iframe; **0 server-side fetch**
+       ke Streamlit — sudah diverifikasi dengan grep. Worker selalu balas 200, jadi monitor
+       akan bilang "up" walaupun Streamlit tidur total. Tidak berguna untuk mencegah sleep.)
+     - Boleh pasang DUA monitor: origin `/healthz` untuk cegah sleep, dan domain Worker
+       untuk memantau Worker+domain itu sendiri.
+     - Interval 5 menit sudah tepat (Streamlit sleep setelah 12 jam idle).
    - Mitigasi lain: buang EasyOCR → Tesseract (boot lebih cepat, RAM -500 MB) — lihat Phase 9 jalur A.
 2. **Trade-off koreksi plat** — `'B12345AB'` → `'B1234SAB'` (angka jadi huruf).
    Sudah didokumentasikan sebagai trade-off yang diterima, bukan bug.

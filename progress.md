@@ -102,6 +102,10 @@ Export `best.pt` -> put in repo. Realistic, no local GPU needed.
 3. If B: get Roboflow API key, add as Streamlit secret, wire detection call.
 4. If A: benchmark pytesseract accuracy vs easyocr on the same plate photos before committing.
 5. If training: build Kaggle notebook, export best.pt, measure RAM again with measure_memory.py.
-6. **Cold start fix (cheap, independent of Phase 9):** set up UptimeRobot monitor pinging
-   `https://vision.choirulhaq.com` every 5 minutes so the container never sleeps.
+6. **Cold start fix (cheap, independent of Phase 9):** UptimeRobot monitor pinging the ORIGIN
+   health endpoint `https://objectdetection-app-qoaxopqhhzmjufnhqsfzty.streamlit.app/healthz`
+   every 5 minutes so the container never sleeps.
+   **Do NOT point the monitor at `https://vision.choirulhaq.com`** — the Cloudflare Worker only
+   serves a static HTML iframe wrapper (verified: 0 server-side fetches to Streamlit) and always
+   returns 200, so it neither prevents sleep nor detects a sleeping app.
    Diagnosed 2026-10-05: the "Server Error" / hang is cold start, not traffic or a Streamlit outage.
