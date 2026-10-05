@@ -128,8 +128,7 @@ if source is not None:
                 if member:
                     member_html = f'''
                     <p class="member-info"><b>Nama:</b> {member['nama']}<br>
-                    <b>Kendaraan:</b> {member['jenis_kendaraan']}<br>
-                    <b>No HP:</b> {member['no_hp']}</p>
+                    <b>Kendaraan:</b> {member['jenis_kendaraan']}</p>
                     '''
 
                 st.markdown(f'''

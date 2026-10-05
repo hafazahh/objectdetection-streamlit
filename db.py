@@ -21,7 +21,6 @@ def init_db():
                 nama TEXT NOT NULL,
                 plat_nomor TEXT NOT NULL UNIQUE,
                 jenis_kendaraan TEXT DEFAULT 'Mobil',
-                no_hp TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -36,6 +35,10 @@ def init_db():
                 FOREIGN KEY (member_id) REFERENCES members(id)
             )
         ''')
+        # Migration: drop the legacy no_hp column if an older database still has it.
+        cols = [r[1] for r in conn.execute('PRAGMA table_info(members)').fetchall()]
+        if 'no_hp' in cols:
+            conn.execute('ALTER TABLE members DROP COLUMN no_hp')
         conn.commit()
     finally:
         conn.close()
@@ -48,14 +51,14 @@ def seed_members():
         count = conn.execute('SELECT COUNT(*) FROM members').fetchone()[0]
         if count == 0:
             sample = [
-                ('Budi Santoso', 'B 1234 ABC', 'Mobil', '081234567890'),
-                ('Siti Rahayu', 'D 5678 XYZ', 'Motor', '081298765432'),
-                ('Andi Wijaya', 'F 9012 DEF', 'Mobil', '082111223344'),
-                ('Dewi Lestari', 'L 3456 GHI', 'Motor', '085755667788'),
-                ('Joko Prasetyo', 'Z 7890 JKL', 'Truk', '087899112233'),
+                ('Budi Santoso', 'B 1234 ABC', 'Mobil'),
+                ('Siti Rahayu', 'D 5678 XYZ', 'Motor'),
+                ('Andi Wijaya', 'F 9012 DEF', 'Mobil'),
+                ('Dewi Lestari', 'L 3456 GHI', 'Motor'),
+                ('Joko Prasetyo', 'Z 7890 JKL', 'Truk'),
             ]
             conn.executemany(
-                'INSERT INTO members (nama, plat_nomor, jenis_kendaraan, no_hp) VALUES (?, ?, ?, ?)',
+                'INSERT INTO members (nama, plat_nomor, jenis_kendaraan) VALUES (?, ?, ?)',
                 sample,
             )
             conn.commit()
@@ -73,13 +76,13 @@ def get_all_members():
         conn.close()
 
 
-def add_member(nama, plat_nomor, jenis_kendaraan, no_hp):
+def add_member(nama, plat_nomor, jenis_kendaraan):
     """Insert member, return new id or None on error."""
     conn = get_db()
     try:
         cur = conn.execute(
-            'INSERT INTO members (nama, plat_nomor, jenis_kendaraan, no_hp) VALUES (?, ?, ?, ?)',
-            (nama, plat_nomor, jenis_kendaraan, no_hp),
+            'INSERT INTO members (nama, plat_nomor, jenis_kendaraan) VALUES (?, ?, ?)',
+            (nama, plat_nomor, jenis_kendaraan),
         )
         conn.commit()
         return cur.lastrowid
@@ -89,13 +92,13 @@ def add_member(nama, plat_nomor, jenis_kendaraan, no_hp):
         conn.close()
 
 
-def update_member(id, nama, plat_nomor, jenis_kendaraan, no_hp):
+def update_member(id, nama, plat_nomor, jenis_kendaraan):
     """Update member, return True/False."""
     conn = get_db()
     try:
         cur = conn.execute(
-            'UPDATE members SET nama=?, plat_nomor=?, jenis_kendaraan=?, no_hp=? WHERE id=?',
-            (nama, plat_nomor, jenis_kendaraan, no_hp, id),
+            'UPDATE members SET nama=?, plat_nomor=?, jenis_kendaraan=? WHERE id=?',
+            (nama, plat_nomor, jenis_kendaraan, id),
         )
         conn.commit()
         return cur.rowcount > 0

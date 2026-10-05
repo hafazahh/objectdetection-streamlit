@@ -39,13 +39,12 @@ with st.form('Tambah Member'):
     nama = st.text_input('Nama')
     plat_nomor = st.text_input('Plat Nomor')
     jenis_kendaraan = st.selectbox('Jenis Kendaraan', ['Mobil', 'Motor', 'Truk', 'Lainnya'])
-    no_hp = st.text_input('No HP')
     submitted = st.form_submit_button('➕ Tambah Member')
     if submitted:
         if not nama or not plat_nomor:
             st.error('❌ Nama dan Plat Nomor wajib diisi!')
         else:
-            new_id = db.add_member(nama, plat_nomor, jenis_kendaraan, no_hp)
+            new_id = db.add_member(nama, plat_nomor, jenis_kendaraan)
             if new_id is not None:
                 st.success(f'✅ Member "{nama}" berhasil ditambahkan (ID: {new_id}).')
                 st.rerun()
@@ -65,9 +64,8 @@ for member in members:
                 index=jenis_list.index(member['jenis_kendaraan']) if member['jenis_kendaraan'] in jenis_list else 0,
                 key=f"ej_{member['id']}",
             )
-            e_hp = st.text_input('No HP', value=member['no_hp'] or '', key=f"eh_{member['id']}")
             if st.form_submit_button('💾 Simpan Perubahan'):
-                if db.update_member(member['id'], e_nama, e_plat, e_jenis, e_hp):
+                if db.update_member(member['id'], e_nama, e_plat, e_jenis):
                     st.success('✅ Member berhasil diperbarui.')
                     st.rerun()
                 else:
