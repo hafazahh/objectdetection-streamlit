@@ -67,10 +67,13 @@ def seed_members():
 
 
 def get_all_members():
-    """Return list of all members as dicts."""
+    """Return list of all members as dicts (explicit columns, schema-independent)."""
     conn = get_db()
     try:
-        rows = conn.execute('SELECT * FROM members ORDER BY id').fetchall()
+        rows = conn.execute(
+            'SELECT id, nama, plat_nomor, jenis_kendaraan, created_at '
+            'FROM members ORDER BY id'
+        ).fetchall()
         return [dict(row) for row in rows]
     finally:
         conn.close()
@@ -122,11 +125,13 @@ def delete_member(id):
 
 
 def find_member_by_plate(plat_nomor):
-    """Return member dict or None."""
+    """Return member dict or None (explicit columns, schema-independent)."""
     conn = get_db()
     try:
         row = conn.execute(
-            'SELECT * FROM members WHERE plat_nomor=?', (plat_nomor,)
+            'SELECT id, nama, plat_nomor, jenis_kendaraan, created_at '
+            'FROM members WHERE plat_nomor=?',
+            (plat_nomor,),
         ).fetchone()
         return dict(row) if row else None
     finally:
