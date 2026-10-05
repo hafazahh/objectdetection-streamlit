@@ -60,10 +60,12 @@ const SECURITY_HEADERS = {
   "X-Frame-Options": "DENY",
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "strict-origin-when-cross-origin",
-  // camera must stay ALLOWED: the app has an st.camera_input() tab, and the
-  // iframe's allow="camera" is a request — Permissions-Policy is what actually
-  // grants or denies it. Denying here silently breaks that feature.
-  "Permissions-Policy": "camera=(self), microphone=(), geolocation=(), payment=()",
+  // camera MUST name the embedded origin explicitly.
+  // `camera=(self)` only allows the page's OWN origin — the iframe lives on a
+  // different origin (*.streamlit.app), so `self` alone blocks the webcam.
+  // The allowlist entry is what actually grants camera to the frame; the
+  // iframe's allow="camera" attribute is only a request, not a grant.
+  "Permissions-Policy": `camera=(self "${STREAMLIT_ORIGIN}"), microphone=(), geolocation=(), payment=()`,
   "Cross-Origin-Opener-Policy": "same-origin",
   "Cross-Origin-Resource-Policy": "same-origin",
 };
