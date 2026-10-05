@@ -156,6 +156,75 @@ CREATE TABLE IF NOT EXISTS detections (
 - [x] Phase 5: Riwayat
 - [x] Phase 6: Deploy
 - [x] Phase 7: OCR Accuracy Improvement (upscale, multi-variant, allowlist, fallback)
+- [x] Phase 8: Format Correction + Fuzzy Matching
+- [ ] Phase 9: YOLO Plate Detection — **ON HOLD (user reviewing)**
+- [ ] Phase 10: Custom Domain (Cloudflare Worker embed wrapper) — DONE, see note below
+
+## Phase 8: Format Correction + Fuzzy Matching — COMPLETE (commit 97be7e9)
+
+### Implemented
+1. `correct_plate_format(text)` — Indonesian pattern `^[A-Z]{1,2}[0-9]{1,4}[A-Z]{1,3}$`
+   - Confusion pairs: digit→letter {0:O, 1:I, 8:B, 5:S, 2:Z, 6:G}
+   - Confusion pairs: letter→digit {O:0, I:1, B:8, S:5, Z:2, G:6, D:0, Q:0}
+   - `_try_repair()` tries all (lead, digit, trail) splits, scores by fewest corrections
+   - Conservative: returns original unchanged if no confident repair
+2. `match_member(plat)` → `(member, match_type)` where type ∈ {'exact', 'fuzzy', None}
+   - Exact first (fast path), then `difflib.SequenceMatcher`
+   - Accept only if ratio ≥ 0.85 AND length diff ≤ 1 AND strictly better than second-best
+3. `app.py` — shows OCR raw vs corrected when they differ; fuzzy match gets
+   🟡 "MATCHED (mirip) — Periksa kembali" instead of ✅
+
+### Verification — 2 independent suites
+**Agent suite (test_correction_fuzzy.py, 13 cases): ALL PASSED**
+**Independent suite (verify_independent.py, 17 cases): ALL PASSED**
+
+Independent suite specifically hunted false positives:
+- 'B1234ABE' (1 char from TWO members) → **None** (ambiguity guard works)
+- 'X9999XXX' → None; 'B9999ABC' (3 chars off) → None
+- 'AB1234CD', 'A1234B', 'B1C' → valid, untouched
+- 'B1234ABCD', 'ABC1234AB' → invalid, untouched
+
+### Known accepted trade-off (NOT a bug to fix)
+`'B12345AB'` (5 digits) → `'B1234SAB'` — digit 5 becomes letter S.
+An attempt to block this (reject digit-runs > 4) **also blocked the main correct case**
+`'81234A8C' → 'B1234ABC'` (its run is also 5 digits) and broke the agent suite. Reverted.
+**The two cases are indistinguishable without extra context.** Aggressive correction
+catches more true plates but can corrupt non-standard ones.
+
+## Phase 9: YOLO Plate Detection — ON HOLD
+
+### Memory measurement (measure_memory.py — real RSS from /proc/self/status)
+| Stage | RSS | Peak |
+|---|---|---|
+| bare interpreter | 8 MB | 8 MB |
+| + opencv | 44 MB | 44 MB |
+| + torch | 530 MB | 530 MB |
+| + easyocr (module) | 721 MB | 721 MB |
+| + EasyOCR Reader | 871 MB | **1253 MB** |
+| + 1x readtext | 925 MB | 1253 MB |
+
+torch alone = 486 MB. Reader peak 1.25 GB = 1.8x the documented 690 MB floor.
+App runs, so the real grant is ~1.5-2 GB — exact ceiling UNKNOWN.
+
+### Decision pending — three paths
+- **A.** easyocr → pytesseract: saves ~500 MB (drops torch), costs plate accuracy
+- **B.** YOLO via hosted API (Roboflow, 1000 credits/mo free): zero added RAM, needs API key
+- **C.** Split services: YOLO elsewhere (Kaggle/Colab/VM) called over HTTP
+
+### Model candidates
+- `wuriyanto/yolo8-indonesian-license-plate-detection` — YOLOv8, 1 class, MIT, Indonesian plates ✓
+- `morsetechlab/yolov11-license-plate-detection` — mAP@50 0.98 BUT upstream dataset has
+  train/test contamination → metric untrustworthy
+
+### Training option
+Kaggle free GPU (T4x2/P100, ~30h/week) + Indonesian plate dataset already on Kaggle.
+Export `best.pt` into repo. No local GPU needed.
+
+## Phase 10: Custom Domain — COMPLETE (commit 1069675)
+Cloudflare Worker at `vision.choirulhaq.com` serves an HTML wrapper embedding the app
+with `?embed=true`. Reverse proxy is IMPOSSIBLE: Streamlit validates `redirect_uri` at
+`share.streamlit.io/-/auth/app` and only accepts its own `*.streamlit.app` origin
+(rewriting it returns `{}` instead of 303). Skill: `streamlit-custom-domain`.
 
 ## Phase 7: OCR Accuracy Improvement — COMPLETE
 
