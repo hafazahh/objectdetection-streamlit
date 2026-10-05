@@ -21,13 +21,52 @@
  *    app's own navigation does not update the outer URL.
  *  - Streamlit's deploy/share chrome is hidden in embed mode; the
  *    "Fullscreen" affordance remains.
+ *
+ * SECURITY HEADERS:
+ *  The Content-Security-Policy is deliberately narrow. This page's only job is
+ *  to render one iframe, so `default-src 'none'` is used and each capability is
+ *  re-enabled explicitly:
+ *    - frame-src  -> the Streamlit origin (the only thing we frame)
+ *    - style-src  -> 'unsafe-inline' for the inline <style> block below
+ *    - img-src    -> data: for the inline SVG favicon
+ *  `frame-ancestors 'none'` + `X-Frame-Options: DENY` stop anyone from framing
+ *  THIS page. They do not affect the iframe we load ourselves.
  */
 
-const APP_URL =
-  "https://objectdetection-app-qoaxopqhhzmjufnhqsfzty.streamlit.app/?embed=true";
+const STREAMLIT_ORIGIN =
+  "https://objectdetection-app-qoaxopqhhzmjufnhqsfzty.streamlit.app";
+const APP_URL = `${STREAMLIT_ORIGIN}/?embed=true`;
 
 const FAVICON =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%236C5CE7'/%3E%3Ctext x='50' y='68' font-size='32' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EANPR%3C/text%3E%3C/svg%3E";
+
+// default-src 'none' + explicit re-enable. No script-src is declared at all,
+// so scripts are blocked outright (default-src 'none' covers it) — this page
+// needs no JavaScript.
+const CSP = [
+  "default-src 'none'",
+  `frame-src ${STREAMLIT_ORIGIN}`,
+  "style-src 'unsafe-inline'",
+  "img-src data:",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+  "object-src 'none'",
+].join("; ");
+
+const SECURITY_HEADERS = {
+  "Content-Security-Policy": CSP,
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+  "X-Frame-Options": "DENY",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  // camera must stay ALLOWED: the app has an st.camera_input() tab, and the
+  // iframe's allow="camera" is a request — Permissions-Policy is what actually
+  // grants or denies it. Denying here silently breaks that feature.
+  "Permissions-Policy": "camera=(self), microphone=(), geolocation=(), payment=()",
+  "Cross-Origin-Opener-Policy": "same-origin",
+  "Cross-Origin-Resource-Policy": "same-origin",
+};
 
 const PAGE = `<!DOCTYPE html>
 <html lang="id">
@@ -65,23 +104,23 @@ const PAGE = `<!DOCTYPE html>
 
 export default {
   async fetch(request) {
+    const headers = {
+      ...SECURITY_HEADERS,
+      "Cache-Control": "public, max-age=300",
+    };
+
     // The iframe loads the Streamlit origin directly, so every request that
     // reaches this host is a page view: render the wrapper.
     if (request.method === "HEAD") {
       return new Response(null, {
         status: 200,
-        headers: { "Content-Type": "text/html; charset=utf-8" },
+        headers: { ...headers, "Content-Type": "text/html; charset=utf-8" },
       });
     }
 
     return new Response(PAGE, {
       status: 200,
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        "Cache-Control": "public, max-age=300",
-        "X-Content-Type-Options": "nosniff",
-        "Referrer-Policy": "no-referrer-when-downgrade",
-      },
+      headers: { ...headers, "Content-Type": "text/html; charset=utf-8" },
     });
   },
 };
