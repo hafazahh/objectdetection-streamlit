@@ -53,12 +53,81 @@ def extract_plate_roi(image, bbox):
     return image[y:y + h, x:x + w]
 
 
-def ocr_plate(image):
-    """Run EasyOCR, return list of (text, confidence) tuples."""
+def upscale_roi(image, min_width=400, max_width=1000):
+    """Bring ROI width into [min_width, max_width] using INTER_CUBIC/INTER_AREA."""
+    if image is None or image.size == 0:
+        return None
+    h, w = image.shape[:2]
+    if w == 0 or h == 0:
+        return None
+    if w < min_width:
+        scale = min_width / w
+        image = cv2.resize(image, (min_width, int(h * scale)), interpolation=cv2.INTER_CUBIC)
+    elif w > max_width:
+        scale = max_width / w
+        image = cv2.resize(image, (max_width, int(h * scale)), interpolation=cv2.INTER_AREA)
+    return image
+
+
+def generate_variants(image):
+    """Generate preprocessing variants of a BGR image for OCR attempts."""
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    clahe_img = cv2.cvtColor(clahe.apply(gray), cv2.COLOR_GRAY2BGR)
+
+    _, otsu_gray = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    otsu_img = cv2.cvtColor(otsu_gray, cv2.COLOR_GRAY2BGR)
+
+    _, otsu_inv_gray = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    otsu_inv_img = cv2.cvtColor(otsu_inv_gray, cv2.COLOR_GRAY2BGR)
+
+    blurred = cv2.GaussianBlur(image, (5, 5), 0)
+    sharpened = cv2.addWeighted(image, 1.5, blurred, -0.5, 0)
+
+    return {
+        "original": image,
+        "clahe": clahe_img,
+        "otsu": otsu_img,
+        "otsu_inv": otsu_inv_img,
+        "sharpened": sharpened,
+    }
+
+
+def ocr_plate(image, full_image=None):
+    """Run EasyOCR with multi-variant preprocessing, return list of (text, confidence)."""
+    if image is None:
+        return []
     try:
         reader = get_reader()
-        results = reader.readtext(image)
-        return [(text, conf) for (_box, text, conf) in results]
+        allowlist = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 "
+        results = []
+
+        upscaled = upscale_roi(image)
+        if upscaled is None or upscaled.size == 0:
+            return []
+
+        for variant in generate_variants(upscaled).values():
+            for (_box, text, conf) in reader.readtext(variant, allowlist=allowlist):
+                results.append((text, conf))
+
+        if not results and full_image is not None and full_image is not image:
+            full_upscaled = upscale_roi(full_image)
+            if full_upscaled is not None and full_upscaled.size > 0:
+                for variant in generate_variants(full_upscaled).values():
+                    for (_box, text, conf) in reader.readtext(variant, allowlist=allowlist):
+                        results.append((text, conf))
+
+        best = {}
+        for text, conf in results:
+            key = normalize_plate(text)
+            if not key:
+                continue
+            if key not in best or conf > best[key][1]:
+                best[key] = (text, conf)
+
+        deduped = sorted(best.values(), key=lambda r: r[1], reverse=True)
+        return deduped
     except Exception as e:
         st.error(f'Gagal menjalankan OCR: {e}')
         return []

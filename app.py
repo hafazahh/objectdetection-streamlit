@@ -54,7 +54,7 @@ db.seed_members()
 with st.sidebar:
     st.markdown('## 🚗 ANPR Deteksi Plat')
     st.info('Aplikasi deteksi plat nomor kendaraan otomatis menggunakan OpenCV dan EasyOCR.')
-    st.warning('⚠️ **Demo Notice:** Akurasi EasyOCR terbatas, terutama pada gambar buram, kurang cahaya, atau sudut miring. Hasil mungkin tidak akurat.')
+    st.warning("⚠️ **Demo Notice:** Akurasi OCR ditingkatkan dengan upscale, multi-variant preprocessing, dan allowlist. Hasil lebih akurat tetapi mungkin tetap tidak sempurna pada gambar buram atau sudut ekstrem.")
     stats = db.get_detection_stats()
     st.metric('Total Member', stats['total_members'])
     st.metric('Total Deteksi', stats['total_detections'])
@@ -99,7 +99,7 @@ if source is not None:
                     st.image(roi_display, use_container_width=True)
                 roi = ocr.extract_plate_roi(image_bgr, bbox)
 
-            ocr_results = ocr.ocr_plate(roi)
+            ocr_results = ocr.ocr_plate(roi, full_image=image_bgr)
 
         if not ocr_results:
             st.error('❌ Tidak ada teks yang terbaca oleh OCR.')

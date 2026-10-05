@@ -149,9 +149,32 @@ CREATE TABLE IF NOT EXISTS detections (
 - Repo harus public untuk Streamlit Community Cloud free tier
 
 ## Status
-- [ ] Phase 1: Setup + Database
-- [ ] Phase 2: OCR Module
-- [ ] Phase 3: Main App (Deteksi)
-- [ ] Phase 4: Member CRUD
-- [ ] Phase 5: Riwayat
-- [ ] Phase 6: Deploy
+- [x] Phase 1: Setup + Database
+- [x] Phase 2: OCR Module
+- [x] Phase 3: Main App (Deteksi)
+- [x] Phase 4: Member CRUD
+- [x] Phase 5: Riwayat
+- [x] Phase 6: Deploy
+- [x] Phase 7: OCR Accuracy Improvement (upscale, multi-variant, allowlist, fallback)
+
+## Phase 7: OCR Accuracy Improvement — COMPLETE
+
+### Root Cause Analysis
+1. ROI kecil (~100-200px) → EasyOCR butuh teks lebih besar
+2. Tidak ada preprocessing ROI (contrast, sharpening, threshold)
+3. Tidak ada allowlist → EasyOCR coba semua karakter
+4. Hanya SATU OCR attempt pada satu variant
+
+### Implemented (2026-10-05)
+1. `upscale_roi(image, min_width=400, max_width=1000)` — INTER_CUBIC up, INTER_AREA down (memory cap)
+2. `generate_variants(image)` — 5 variants: original, CLAHE, Otsu, Otsu-inv, sharpened (unsharp mask)
+3. Allowlist `ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 `
+4. `ocr_plate(image, full_image=None)` — fallback to full image only when ROI empty AND different image
+5. Dedup by normalize_plate, keep max confidence, sort desc
+
+### Verification (actual output)
+- Full app flow synthetic scene: detect bbox (264,264,246,86), OCR read 'B 2301 PZX' conf=0.993
+- Member match: 'B 1234 ABC' conf=0.997 → matched Budi Santoso
+- Edge cases (None/empty/tiny): no crash, return []
+- upscale_roi bounds: 150px→400px, 4000px→1000px
+- ALL TESTS PASSED
