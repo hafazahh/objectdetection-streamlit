@@ -1,9 +1,13 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 streamlit>=1.30.0
-opencv-python-headless>=4.8.0
 pillow>=10.0.0
 numpy>=1.24.0
 torch==2.14.1+cpu
 torchvision==0.29.1+cpu
 ultralytics>=8.3.0
 pytesseract>=0.3.10
+# Listed AFTER ultralytics on purpose: ultralytics depends on opencv-python
+# (the GUI build), which needs Qt/GTK libraries that a headless server lacks.
+# Declaring the headless build last lets pip resolve to it instead, which both
+# avoids the missing-library import error and saves memory on Streamlit Cloud.
+opencv-python-headless>=4.8.0
