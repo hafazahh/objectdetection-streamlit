@@ -11,9 +11,10 @@ Tidak ada pekerjaan yang sedang berjalan. Phase 9 (YOLO) belum dimulai.
 - **URL:** https://vision.choirulhaq.com
 - **Origin:** https://objectdetection-app-qoaxopqhhzmjufnhqsfzty.streamlit.app/?embed=true
 - **Repo:** https://github.com/hafazahh/objectdetection-streamlit (branch `master`)
-- **Last commit:** `97be7e9` — format correction + fuzzy matching
-- **Project dir:** `/home/choirulhaq/GoogleDrive/AhliPemrograman/objectdetection-streamlit/`
-- **venv:** `/home/choirulhaq/venvProject` (activate dulu, selalu pakai `python3`)
+- **Last commit:** `e403009` — fix crop mismatch + adaptive variants + validity gate
+- **Project dir (AKTIF):** `/home/choirulhaq/venvProject/objectdetection-streamlit/` (disk lokal, cepat)
+- **Arsip:** `/home/choirulhaq/GoogleDrive/AhliPemrograman/objectdetection-streamlit/` (jangan dikerjakan di sini)
+- **venv:** `/home/choirulhaq/venvProject/venv` (activate dulu, selalu pakai `python3`)
 
 ## Cara Verifikasi Cepat (health check)
 ```bash
