@@ -124,7 +124,11 @@ if source is not None:
                 roi = ocr.extract_plate_roi(image_bgr, bbox)
 
             # --- Step 2 & 3: OCR with cross-variant voting -------------------
-            ocr_results = ocr.ocr_plate(roi, full_image=image_bgr)
+            # Pass the registered plates so the vote can prefer a read that
+            # matches a known member, not just the most popular OCR string.
+            known_plates = [m['plat_nomor'] for m in db.get_all_members()]
+            ocr_results = ocr.ocr_plate(roi, full_image=image_bgr,
+                                        db_plates=known_plates)
 
         if not ocr_results:
             st.error('❌ Tidak ada teks yang terbaca oleh OCR.')

@@ -187,11 +187,15 @@ def _read_one(img, psm):
     return norm, conf
 
 
-def ocr_plate(image, full_image=None):
+def ocr_plate(image, full_image=None, db_plates=None):
     """Read a plate ROI with Tesseract and vote across variants.
 
-    Returns a list of (text, score) sorted best-first, where score blends how
-    many variants agreed, their mean confidence, and plate-format validity.
+    Returns a list of (text, score) sorted best-first.
+
+    `db_plates` is an optional list of known member plate strings. When given,
+    candidates that resemble a registered plate are preferred — a read that is
+    slightly less popular across OCR variants can still win if it matches a
+    member, which is what the operator actually cares about.
     """
     if image is None or image.size == 0:
         return []
@@ -221,22 +225,35 @@ def ocr_plate(image, full_image=None):
         if not candidates:
             return []
 
-        return _vote(candidates)
+        return _vote(candidates, db_plates=db_plates)
     except Exception as e:
         st.error(f'Gagal menjalankan OCR: {e}')
         return []
 
 
-def _vote(candidates):
+def _vote(candidates, db_plates=None):
     """Group identical reads and rank them.
 
-    Voting beats trusting the single highest-confidence read: one variant can
-    return a confident but wrong string, whereas the correct plate usually
-    reappears across several variants.
+    Two things decide the winner, in this order:
+
+    1. **Format validity is a gate, not a bonus.** A string that cannot be an
+       Indonesian plate (e.g. four trailing letters) is demoted below every
+       valid candidate, no matter how many OCR variants produced it. Voting
+       alone used to let such a string win: a candidate read by 4 variants
+       scored 4.84 while the correct, valid plate read by only 2 variants
+       scored 4.50. The 1.5 validity bonus could not bridge a 2-vote gap.
+
+    2. **Within the same validity tier**, agreement across variants, mean
+       confidence, and resemblance to a registered member plate decide.
+
+    If NO candidate has a valid format, the invalid ones are still ranked among
+    themselves so the caller always gets an answer instead of nothing.
     """
     groups = defaultdict(list)
     for text, conf in candidates:
         groups[text].append(conf)
+
+    known = [normalize_plate(p) for p in (db_plates or []) if p]
 
     scored = []
     for text, confs in groups.items():
@@ -244,11 +261,17 @@ def _vote(candidates):
         mean_conf = sum(confs) / votes
         corrected, _ = correct_plate_format(text)
         valid = bool(PLATE_PATTERN.match(corrected))
-        score = votes + mean_conf * 2.0 + (1.5 if valid else 0.0)
-        scored.append((text, score))
 
-    scored.sort(key=lambda r: r[1], reverse=True)
-    return scored
+        # Resemblance to a registered plate (0-100), used only as a tiebreaker
+        # inside a tier so it can never promote an invalid read.
+        db_sim = max((plate_similarity(corrected, p) for p in known), default=0.0)
+
+        base = votes + mean_conf * 2.0 + (db_sim / 100.0) * 4.0
+        tier = 1 if valid else 0
+        scored.append((tier, base, text))
+
+    scored.sort(key=lambda r: (r[0], r[1]), reverse=True)
+    return [(text, base) for _tier, base, text in scored]
 
 
 # ---------------------------------------------------------------------------
