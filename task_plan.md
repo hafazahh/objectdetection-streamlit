@@ -241,6 +241,41 @@ jadi **EXACT** dengan tambahan kandidat dari full image.
 **Perubahan kode:** blok `if not candidates and full_image...` → `if full_image...`
 selalu dijalankan. Biaya: OCR ~2x lebih lama (masih cepat, Tesseract ringan).
 
+### Perbaikan: validitas format jadi GATE, bukan bonus (2026-10-06)
+
+**Dilaporkan user** — kasus nyata dari screenshot dashboard:
+```
+Kandidat 1: E2301PZXT  score 4.84  → dipilih, SALAH
+Kandidat 2: B2301PZX   score 4.50  → benar, ada di database, KALAH
+```
+
+**Reproduksi tepat** (skor cocok persis dengan screenshot):
+```
+E2301PZXT  votes=4  conf=0.42  format INVALID → 4.84
+B2301PZX   votes=2  conf=0.50  format VALID   → 4.50
+```
+`E2301PZXT` punya **4 huruf di belakang** (maksimal 3 di plat Indonesia) → format
+tidak mungkin. Tapi dia dibaca **4 varian** vs **2 varian** untuk yang benar, dan
+bonus validitas 1.5 **tidak cukup menutup selisih 2 suara**.
+
+**Perbaikan:**
+1. **Validitas format jadi tier, bukan bonus.** Setiap kandidat ber-format valid
+   selalu mengalahkan yang tidak valid, berapa pun jumlah suaranya
+2. **Dalam tier yang sama**: suara + confidence + kemiripan database
+3. **`db_plates` diteruskan dari app.py** — kandidat yang mirip plat terdaftar
+   lebih diprioritaskan
+4. **Fallback**: kalau SEMUA kandidat tidak valid, tetap diurutkan (jangan kosong)
+
+**Hasil:** `B2301PZX` menang ✓ (sebelumnya `E2301PZXT`)
+
+**Verifikasi:** test_correction_fuzzy 3/3 lolos · verify_independent 17/17 lolos ·
+regresi 4 foto tetap 2/4 · fallback semua-invalid tetap mengembalikan hasil
+
+### ⚠️ Jebakan: label skrip tes sendiri
+Skrip verifikasi saya sempat salah memberi label (`was_corrected` ditulis sebagai
+`valid`), sehingga output menampilkan `valid=False` padahal kode benar. **Selalu
+periksa ulang skrip tes sendiri sebelum menyimpulkan ada bug di kode produksi.**
+
 ### Pelajaran
 1. **Ukur, jangan tebak.** RAM, akurasi, dan penyebab kegagalan semuanya diukur
 2. **Dump semua varian sebelum menyimpulkan.** Kesimpulan awal saya ("Tesseract
