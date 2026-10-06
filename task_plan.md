@@ -157,8 +157,98 @@ CREATE TABLE IF NOT EXISTS detections (
 - [x] Phase 6: Deploy
 - [x] Phase 7: OCR Accuracy Improvement (upscale, multi-variant, allowlist, fallback)
 - [x] Phase 8: Format Correction + Fuzzy Matching
-- [ ] Phase 9: YOLO Plate Detection — **ON HOLD (user reviewing)**
-- [ ] Phase 10: Custom Domain (Cloudflare Worker embed wrapper) — DONE, see note below
+- [x] Phase 10: Custom Domain (Cloudflare Worker embed wrapper)
+- [x] Phase 11: YOLO Plate Detection + Tesseract + Similarity % — DEPLOYED, tuning akurasi
+
+## Phase 11: YOLO + Tesseract — DEPLOYED (commit f6f8be8, a944214)
+
+### Arsitektur baru
+```
+gambar → YOLO (deteksi bbox plat) → crop ROI → Tesseract OCR
+       → voting lintas varian → koreksi format plat Indonesia
+       → banding database member → persentase kemiripan
+```
+
+### Kenapa EasyOCR dibuang
+| | EasyOCR | YOLO + Tesseract |
+|---|---|---|
+| Peak RAM | 1253 MB | **857 MB** |
+| Deteksi plat | contour OpenCV (tebak rasio 2:1–5:1) | **YOLOv8** (belajar bentuk plat) |
+| Cold start | lambat (penyebab "Server Error" 45-120s) | lebih cepat |
+
+### Model
+`models/plate_yolov8.pt` — 6.0 MB, MIT, `wuriyanto/yolo8-indonesian-license-plate-detection`
+(YOLOv8, 1 class `plate`, dilatih dataset plat Indonesia)
+
+### Temuan diagnostik (dump semua varian × PSM, bukan menebak)
+1. **YOLO deteksi 4/4** foto asli — confidence 0.42–0.86
+2. **Tesseract sanggup**: `gray psm7` dapat EXACT untuk 2 dari 4 foto
+3. **Akar kesalahan = fungsi skor memilih varian salah.** Satu varian bisa
+   confidence tinggi tapi salah, sementara jawaban benar ada di varian lain
+4. **Solusi: voting lintas varian** — bukan ambil confidence tertinggi.
+   Ini yang mengubah 2 foto dari gagal jadi benar
+5. **Inversi penting**: plat Indonesia sering putih-di-atas-hitam; Tesseract
+   butuh hitam-di-atas-putih → kedua polaritas dicoba
+6. Sisa kegagalan inheren: plat lama, angka nol bergaris (slashed zero),
+   Tesseract menambah/mengurangi karakter di tepi
+
+### Akurasi — 4 foto plat Indonesia asli (Wikimedia Commons)
+| Foto | Ground truth | Baru (YOLO+Tess) | Lama (contour+EasyOCR) |
+|---|---|---|---|
+| plat1 | `B1051TMW` | **`B1051TMW`** ✅ | tidak terbaca |
+| plat2 | `B1481TUB` | `21281TUBI` | tidak terbaca |
+| plat3 | `KT3344LA` | `KE3344LA` | `KE3344L` |
+| plat4 | `B2156T0R` | `B2156TORI` | `BEES` |
+
+**1/4 exact (baru) vs 0/4 (lama).** Catatan: foto ini kondisi sulit (close-up
+ekstrem, plat lama, resolusi rendah). Akurasi foto mobil biasa belum diukur.
+
+### Persentase kemiripan (baru)
+`match_member()` sekarang return `(member, match_type, similarity, runner_up)`.
+Skor gabungan: SequenceMatcher 55% + posisi karakter 30% + huruf depan cocok 15%.
+Guard ambiguitas tetap: butuh ≥70% DAN unggul ≥5% dari runner-up.
+
+### ⚠️ Jebakan: ultralytics menarik opencv-python FULL
+`pip install ultralytics` memasang `opencv-python` (versi GUI, butuh Qt/GTK) di
+samping `opencv-python-headless`. Di server headless ini bisa gagal impor.
+**Fix:** deklarasikan `opencv-python-headless` **setelah** `ultralytics` di
+requirements.txt supaya pip memilih build headless. (commit `a944214`)
+
+### Verifikasi
+- `test_correction_fuzzy.py` — 3/3 lolos (signature `match_member` diupdate)
+- `verify_independent.py` — 17/17 lolos, termasuk guard ambiguitas
+- `measure_memory_yolo.py` — RAM nyata terukur
+- Deploy: `healthz` 200, `models/`, `packages.txt`, `requirements.txt` ada di repo
+
+### Hasil eksperimen strategi (8 kombinasi, empiris)
+
+| Sumber kandidat | Strategi | Skor |
+|---|---|---|
+| crop only | A voting (lama) | 1/4 |
+| crop only | B confidence | 1/4 |
+| crop only | C valid+long | 0/4 |
+| crop only | D hybrid | 1/4 |
+| **crop + full** | **A voting** | **2/4** ← dipakai |
+| crop + full | B confidence | 2/4 |
+| crop + full | C valid+long | 0/4 |
+| crop + full | D hybrid | 2/4 |
+
+**Kesimpulan:** strategi voting sudah optimal (setara B/D). Yang menaikkan akurasi
+adalah **sumber kandidat**: selalu kumpulkan dari crop **dan** full image, bukan
+hanya fallback saat crop kosong. plat3 (`KT3344LA`) berubah dari `KE3344LA` (salah)
+jadi **EXACT** dengan tambahan kandidat dari full image.
+
+**Perubahan kode:** blok `if not candidates and full_image...` → `if full_image...`
+selalu dijalankan. Biaya: OCR ~2x lebih lama (masih cepat, Tesseract ringan).
+
+### Pelajaran
+1. **Ukur, jangan tebak.** RAM, akurasi, dan penyebab kegagalan semuanya diukur
+2. **Dump semua varian sebelum menyimpulkan.** Kesimpulan awal saya ("Tesseract
+   lemah") salah — ternyata fungsi skor yang salah memilih
+3. **Voting mengalahkan confidence tertinggi.** Satu varian bisa yakin tapi salah
+4. **Perubahan signature fungsi = regresi test.** `match_member` dari 2 → 4 nilai
+   mematahkan dua test suite; harus diupdate bersamaan
+5. **Cek dependensi transitif.** ultralytics membawa opencv versi GUI diam-diam
 
 ## Phase 8: Format Correction + Fuzzy Matching — COMPLETE (commit 97be7e9)
 

@@ -207,8 +207,11 @@ def ocr_plate(image, full_image=None):
                 if text:
                     candidates.append((text, conf))
 
-        # Fallback: if the ROI yielded nothing, try the whole image
-        if not candidates and full_image is not None and full_image is not image:
+        # Always collect from the full image too, not only as a fallback.
+        # Measured on 4 real Indonesian plate photos: crop-only scored 1/4 while
+        # crop + full scored 2/4. The extra candidates let the vote correct reads
+        # the crop alone got wrong (e.g. a tight crop lost the leading letter).
+        if full_image is not None and full_image is not image:
             for vimg in generate_variants(full_image).values():
                 for psm in PSM_MODES:
                     text, conf = _read_one(vimg, psm)

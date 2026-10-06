@@ -117,15 +117,26 @@ bare interpreter        8.4 MB
 6. **plat4 sulit**: ada angka nol bergaris (slashed zero) + Tesseract menambah `I` di akhir
 7. Inversi gambar membantu plat gelap (plat3) tapi merusak yang terang → karena itu **kedua polaritas dicoba**
 
+### ⚠️ Temuan: ultralytics menarik opencv-python FULL
+`pip install ultralytics` memasang **`opencv-python` 5.0.0.93** (versi full, bukan
+headless) di samping `opencv-python-headless`. Versi full butuh library GUI
+(Qt/GTK) yang tidak ada di server headless → **berisiko error impor dan menambah
+RAM** di Streamlit Cloud.
+
+**Yang harus dilakukan:** tambahkan `opencv-python-headless` **setelah** ultralytics
+di requirements.txt agar pip memilih versi headless, atau pin eksplisit.
+Cek di deploy apakah `import cv2` berhasil — kalau gagal, ini penyebabnya.
+
 ### Sedang berjalan
 Eksperimen 8 kombinasi (4 strategi skor × 2 sumber kandidat) untuk cari konfigurasi terbaik secara empiris, bukan menebak.
 
 ### Yang belum
 - [ ] Pilih strategi skor terbaik dari hasil eksperimen
-- [ ] Jalankan test suite lama (`test_correction_fuzzy.py`, `verify_independent.py`)
-- [ ] Verifikasi independen pipeline baru
-- [ ] Commit + deploy
-- [ ] Verifikasi live di vision.choirulhaq.com
+- [x] Jalankan test suite lama (`test_correction_fuzzy.py` 3/3, `verify_independent.py` 17/17) — **LOLOS**
+- [ ] Pastikan opencv headless menang atas opencv full di deploy
+- [ ] Verifikasi independen pipeline baru (end-to-end)
+- [x] Commit `f6f8be8`
+- [ ] Deploy + verifikasi live di vision.choirulhaq.com
 
 ## Isu Terbuka (belum tuntas)
 1. **Cold start lambat = "Server Error" / hang (TERDIAGNOSA 2026-10-05)**
