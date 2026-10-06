@@ -69,6 +69,64 @@ interpreter kosong        8 MB
 Streamlit Cloud memberi ~1.5-2 GB (app jalan di atas lantai 690 MB).
 **Estimasi YOLO: puncak ~1.4-1.6 GB** — muat, tapi headroom tipis.
 
+## Phase 11: YOLO + Tesseract — IN PROGRESS (mulai 2026-10-05)
+
+**Keputusan user: Opsi A — YOLO deteksi plat + Tesseract OCR, EasyOCR dibuang.**
+
+### Sudah dikerjakan
+| Item | Status |
+|---|---|
+| `ultralytics 8.4.173` + `pytesseract 0.3.13` terpasang | ✅ |
+| Model YOLO plat Indonesia (`models/plate_yolov8.pt`, 6.0 MB, MIT) | ✅ |
+| `measure_memory_yolo.py` — RAM nyata terukur | ✅ |
+| `ocr.py` ditulis ulang: YOLO + Tesseract + voting | ✅ |
+| `app.py` diperbarui: bbox YOLO, persentase kemiripan, detail pipeline | ✅ |
+| `requirements.txt` — easyocr dibuang, ultralytics + pytesseract ditambah | ✅ |
+| `packages.txt` — `tesseract-ocr` untuk apt Streamlit Cloud | ✅ |
+
+### RAM — hasil pengukuran nyata (measure_memory_yolo.py)
+```
+bare interpreter        8.4 MB
++ numpy                25.9 MB
++ opencv               54.6 MB
++ torch               541.6 MB
++ ultralytics         554.4 MB
++ pytesseract         628.8 MB
++ YOLO model loaded   646.5 MB
++ 1 inference         856.4 MB   <- peak
++ 1 Tesseract pass    857.0 MB
+```
+**Peak 857 MB vs EasyOCR 1253 MB → hemat 396 MB.** Cold start harusnya membaik.
+
+### Akurasi pada 4 foto plat Indonesia asli (Wikimedia Commons)
+| Foto | Ground truth | Hasil | Status |
+|---|---|---|---|
+| plat1 | `B1051TMW` | `B1051TMW` | ✅ EXACT |
+| plat2 | `B1481TUB` | `21281TUBI` | ❌ |
+| plat3 | `KT3344LA` | `KE3344LA` | ❌ (1 huruf) |
+| plat4 | `B2156T0R` | `B2156TORI` | ❌ (nol bergaris + huruf ekstra) |
+
+**1/4 exact.** Pipeline lama (contour + EasyOCR) = **0/4**.
+
+### Temuan diagnostik penting
+1. **YOLO deteksi berhasil 4/4** (confidence 0.42–0.86) — jauh lebih baik dari contour yang sering salah area
+2. **Tesseract `gray psm7` dapat EXACT untuk plat1 & plat3** — mesin OCR-nya sanggup
+3. **Penyebab utama kesalahan: fungsi skor memilih varian yang salah.** Satu varian bisa memberi confidence tinggi tapi salah, sementara yang benar ada di varian lain
+4. **Solusi: voting lintas varian** (bukan ambil confidence tertinggi) — ini yang menaikkan plat1 & plat3
+5. **plat2 sulit**: Tesseract konsisten membaca `21281...` bukan `B1481...` — kemungkinan kualitas crop/karakter
+6. **plat4 sulit**: ada angka nol bergaris (slashed zero) + Tesseract menambah `I` di akhir
+7. Inversi gambar membantu plat gelap (plat3) tapi merusak yang terang → karena itu **kedua polaritas dicoba**
+
+### Sedang berjalan
+Eksperimen 8 kombinasi (4 strategi skor × 2 sumber kandidat) untuk cari konfigurasi terbaik secara empiris, bukan menebak.
+
+### Yang belum
+- [ ] Pilih strategi skor terbaik dari hasil eksperimen
+- [ ] Jalankan test suite lama (`test_correction_fuzzy.py`, `verify_independent.py`)
+- [ ] Verifikasi independen pipeline baru
+- [ ] Commit + deploy
+- [ ] Verifikasi live di vision.choirulhaq.com
+
 ## Isu Terbuka (belum tuntas)
 1. **Cold start lambat = "Server Error" / hang (TERDIAGNOSA 2026-10-05)**
    - Gejala: `Error: Server Error — The server encountered a temporary error and could not

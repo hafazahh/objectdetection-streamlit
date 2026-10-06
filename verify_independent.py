@@ -83,12 +83,14 @@ fuzzy_cases = [
     ('B9999ABC', '3 chars off -> None (below 0.85)', None, None),
 ]
 for text, note, exp_type, exp_name in fuzzy_cases:
-    member, mtype = ocr.match_member(text)
+    # match_member now also returns (similarity, runner_up) percentages
+    member, mtype, sim, runner = ocr.match_member(text)
     name = member['nama'] if member else None
     ok = (mtype == exp_type and name == exp_name)
     if not ok:
         fails += 1
-    print(f"  [{'PASS' if ok else 'FAIL'}] {text!r:11} -> type={str(mtype):7} name={str(name):14}  ({note})")
+    print(f"  [{'PASS' if ok else 'FAIL'}] {text!r:11} -> type={str(mtype):7} "
+          f"name={str(name):14} sim={sim:5.1f}% runner={runner:5.1f}%  ({note})")
     if not ok:
         print(f"          expected type={exp_type!r} name={exp_name!r}")
 

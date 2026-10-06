@@ -58,11 +58,13 @@ def test_fuzzy_matching():
 
     all_passed = True
     for input_text, expected_name, expected_match_type in test_cases:
-        member, match_type = ocr.match_member(input_text)
+        # match_member now also returns (similarity, runner_up) percentages
+        member, match_type, sim, runner = ocr.match_member(input_text)
         actual_name = member['nama'] if member else None
         passed = (actual_name == expected_name and match_type == expected_match_type)
         status = "PASS" if passed else "FAIL"
-        print(f"  [{status}] {input_text!r} -> name={actual_name!r}, type={match_type!r}")
+        print(f"  [{status}] {input_text!r} -> name={actual_name!r}, type={match_type!r}, "
+              f"sim={sim:.1f}%, runner_up={runner:.1f}%")
         if not passed:
             print(f"         Expected: name={expected_name!r}, type={expected_match_type!r}")
             all_passed = False
@@ -87,11 +89,12 @@ def test_correction_then_match():
     all_passed = True
     for raw_input, expected_name, expected_match_type in test_cases:
         corrected, was_corrected = ocr.correct_plate_format(raw_input)
-        member, match_type = ocr.match_member(corrected)
+        member, match_type, sim, runner = ocr.match_member(corrected)
         actual_name = member['nama'] if member else None
         passed = (actual_name == expected_name and match_type == expected_match_type)
         status = "PASS" if passed else "FAIL"
-        print(f"  [{status}] {raw_input!r} -> corrected={corrected!r} -> name={actual_name!r}, type={match_type!r}")
+        print(f"  [{status}] {raw_input!r} -> corrected={corrected!r} -> name={actual_name!r}, "
+              f"type={match_type!r}, sim={sim:.1f}%")
         if not passed:
             print(f"         Expected: name={expected_name!r}, type={expected_match_type!r}")
             all_passed = False
