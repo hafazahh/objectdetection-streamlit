@@ -28,9 +28,9 @@ curl -s -o /dev/null -w "%{http_code}\n" --max-time 25 https://vision.choirulhaq
 
 # Test suite lokal
 cd /home/choirulhaq/GoogleDrive/AhliPemrograman/objectdetection-streamlit
-/home/choirulhaq/venvProject/bin/python3 test_correction_fuzzy.py   # 13 kasus
-/home/choirulhaq/venvProject/bin/python3 verify_independent.py      # 17 kasus
-/home/choirulhaq/venvProject/bin/python3 measure_memory.py          # ukur RAM
+/home/choirulhaq/venvProject/venv/bin/python3 test_correction_fuzzy.py   # 13 kasus
+/home/choirulhaq/venvProject/venv/bin/python3 verify_independent.py      # 17 kasus
+/home/choirulhaq/venvProject/venv/bin/python3 measure_memory.py          # ukur RAM
 ```
 
 ## Yang Sudah Selesai
