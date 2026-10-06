@@ -183,3 +183,17 @@ Eksperimen 8 kombinasi (4 strategi skor × 2 sumber kandidat) untuk cari konfigu
    menemukan 1 masalah dari 17 kasus di Phase 8.
 4. **Perbaikan bisa lebih buruk dari masalah** — guard digit-run saya merusak kasus utama.
    Revert. Ukur dampak sebelum commit.
+5. **JANGAN jalankan dua `git push` bersamaan ke repo yang sama.** Push pertama menaikkan
+   ref remote; push kedua masih memegang ref lama dan ditolak dengan
+   `cannot lock ref ... is at X but expected Y`. Ref lokal jadi basi, dan status
+   "belum sinkron" yang dibaca setelahnya MENYESATKAN — sebenarnya push pertama berhasil.
+   **Selalu `git fetch origin` dulu** untuk melihat keadaan sebenarnya sebelum melaporkan status.
+6. **Jangan percaya `pgrep -f <nama>` untuk cek proses.** Perintah `pgrep` sendiri cocok
+   dengan polanya, sehingga selalu melaporkan "masih jalan". Pakai `ps -eo pid,etime,cmd`
+   dan filter, atau cek `ps -o etime= -p <pid>`.
+7. **Dump semua varian sebelum menyimpulkan "alatnya lemah".** Kesimpulan awal saya
+   ("Tesseract tidak sanggup") salah — ternyata fungsi skor yang salah memilih varian.
+   Diagnostik lengkap mengubah arah perbaikan.
+8. **Cek dependensi transitif.** `ultralytics` diam-diam menarik `opencv-python` versi GUI
+   (butuh Qt/GTK) di samping versi headless — berisiko gagal impor di server headless.
+   Deklarasikan versi headless SETELAH ultralytics di requirements.txt.
