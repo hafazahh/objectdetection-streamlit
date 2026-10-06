@@ -113,15 +113,18 @@ if source is not None:
                 st.warning('⚠️ Area plat tidak terdeteksi. Mencoba OCR pada seluruh gambar...')
                 roi = image_bgr
             else:
-                x, y, w, h = bbox
+                # Compute the ROI FIRST, then display that exact image — the UI
+                # must show the same crop OCR receives, not the raw YOLO box.
+                roi = ocr.extract_plate_roi(image_bgr, bbox)
                 with col2:
                     st.subheader('🔍 Area Plat')
-                    st.image(image[y:y + h, x:x + w], use_container_width=True)
+                    if roi is not None and roi.size:
+                        st.image(cv2.cvtColor(roi, cv2.COLOR_BGR2RGB),
+                                 use_container_width=True)
                     if detector_used == 'YOLO':
                         st.caption(f'Deteksi YOLO — confidence {yolo_conf * 100:.1f}%')
                     else:
                         st.caption(f'Deteksi {detector_used} — YOLO tidak menemukan plat')
-                roi = ocr.extract_plate_roi(image_bgr, bbox)
 
             # --- Step 2 & 3: OCR with cross-variant voting -------------------
             # Pass the registered plates so the vote can prefer a read that

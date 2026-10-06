@@ -73,8 +73,17 @@ def detect_plate_yolo(image, conf=0.25, imgsz=640):
 
 
 def extract_plate_roi(image, bbox, pad=4):
-    """Crop the ROI from (x, y, w, h) with a small padding so edge characters
-    are not clipped by an over-tight box."""
+    """Crop the ROI from (x, y, w, h), with a small padding.
+
+    Measured on real photos: pad=4 with adaptive-threshold variants gave the
+    closest read on a worn plate ('B2156TOR' vs 'S8REG' without adaptive), so
+    the padding is kept.
+
+    IMPORTANT: app.py must display the SAME crop that is sent here. It used to
+    render the raw YOLO box while OCR received box+pad, so the ROI on screen was
+    not the image being read — misleading when diagnosing bad reads. Use
+    display_plate_roi() below so both stay identical.
+    """
     if bbox is None or image is None:
         return None
     x, y, w, h = bbox
@@ -83,6 +92,13 @@ def extract_plate_roi(image, bbox, pad=4):
     x1, y1 = min(iw, x + w + pad), min(ih, y + h + pad)
     roi = image[y0:y1, x0:x1]
     return roi if roi.size else None
+
+
+def display_plate_roi(image, bbox, pad=4):
+    """The crop to SHOW in the UI — identical to what extract_plate_roi sends
+    to OCR, so the displayed ROI is never a different image from the one read.
+    """
+    return extract_plate_roi(image, bbox, pad=pad)
 
 
 def detect_plate_contour(image):
@@ -142,6 +158,10 @@ def generate_variants(image):
 
     Includes INVERTED versions because Indonesian plates are frequently white
     characters on a black background, which Tesseract cannot read directly.
+
+    Adaptive threshold is included because a diagnostic dump showed it produced
+    the closest read on a worn plate where global Otsu failed ('B2156TOR' vs
+    'B2156TORI'). It adapts to uneven lighting across the plate.
     """
     up = upscale_roi(image)
     if up is None:
@@ -155,6 +175,9 @@ def generate_variants(image):
         variants[f'{tag}_otsu'] = otsu
         variants[f'{tag}_clahe'] = cv2.createCLAHE(clipLimit=2.0,
                                                    tileGridSize=(8, 8)).apply(base)
+        variants[f'{tag}_adap'] = cv2.adaptiveThreshold(
+            base, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY, 31, 10)
     return variants
 
 
@@ -267,11 +290,16 @@ def _vote(candidates, db_plates=None):
         db_sim = max((plate_similarity(corrected, p) for p in known), default=0.0)
 
         base = votes + mean_conf * 2.0 + (db_sim / 100.0) * 4.0
-        tier = 1 if valid else 0
-        scored.append((tier, base, text))
+        # Validity is folded INTO the returned score, not just the sort key.
+        # Callers re-sort by score (app.py picks max, harnesses take [0]); if the
+        # tier lived only in the sort key, an invalid read with a high raw score
+        # ('B2156TORI' at 21.64) would beat a valid one ('B2156TOR' at 2.72) as
+        # soon as anyone sorted the returned list again.
+        tier_offset = 1000.0 if valid else 0.0
+        scored.append((text, tier_offset + base))
 
-    scored.sort(key=lambda r: (r[0], r[1]), reverse=True)
-    return [(text, base) for _tier, base, text in scored]
+    scored.sort(key=lambda r: r[1], reverse=True)
+    return scored
 
 
 # ---------------------------------------------------------------------------
